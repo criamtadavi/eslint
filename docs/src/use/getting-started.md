@@ -1,159 +1,224 @@
----
-title: Getting Started with ESLint
-eleventyNavigation:
-    key: getting started
-    parent: use eslint
-    title: Getting Started
-    order: 1
+const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, ChannelType, ButtonStyle, ActionRowBuilder, ButtonBuilder, EmbedBuilder } = require('discord.js');
+const config = require('./config.json'); // Carrega o arquivo config.json
 
----
+// Substitua as variáveis pelos valores do arquivo config.json
+const { TOKEN, GUILD_ID, CLIENT_ID, TICKET_CATEGORY_ID, STAFF_ROLE_ID } = config;
 
-ESLint is a tool for identifying and reporting on patterns found in ECMAScript/JavaScript code, with the goal of making code more consistent and avoiding bugs.
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-ESLint is completely pluggable. Every single rule is a plugin and you can add more at runtime. You can also add community plugins, configurations, and parsers to extend the functionality of ESLint.
+// Registro do comando /ticket
+const commands = [
+    new SlashCommandBuilder()
+        .setName('ticket')
+        .setDescription('Abre o painel do sistema de tickets'),
+].map(command => command.toJSON());
 
-## Prerequisites
+const rest = new REST({ version: '10' }).setToken(TOKEN);
 
-To use ESLint, you must have [Node.js](https://nodejs.org/en/) (`^18.18.0`, `^20.9.0`, or `>=21.1.0`) installed and built with SSL support. (If you are using an official Node.js distribution, SSL is always built in.)
+(async () => {
+    try {
+        console.log('Iniciando o registro de comandos...');
+        await rest.put(
+            Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+            { body: commands }
+        );
+        console.log('Comandos registrados com sucesso!');
+    } catch (error) {
+        console.error('Erro ao registrar comandos:', error);
+    }
+})();
 
-## Quick start
+client.once('ready', () => {
+    console.log(`Bot está online como ${client.user.tag}`);
+});
 
-You can install and configure ESLint using this command:
+let ticketCounter = 1; // Contador de tickets
 
-```shell
-npm init @eslint/config@latest
+client.on('interactionCreate', async (interaction) => {
+    if (interaction.isCommand() && interaction.commandName === 'ticket') {
+        try {
+            await interaction.reply({
+                embeds: [
+                    {
+                        color: 0x00ff00,
+                        title: '🎫 Bem-vindo(a) ao sistema de tickets!',
+                        description: `
+**Informe o que você precisa.** Tickets que não forem diretos ao ponto serão **fechados**.
 
-# or
+**Instruções:**
+- Para denúncias, é necessário enviar um vídeo (pode ser enviado no YouTube).
+- Para prints, use Imgur ou outra plataforma similar.
 
-yarn create @eslint/config
-
-# or
-
-pnpm create @eslint/config@latest
-```
-
-If you want to use a specific shareable config that is hosted on npm, you can use the `--config` option and specify the package name:
-
-```shell
-# use `eslint-config-standard` shared config
-
-# npm 7+
-npm init @eslint/config@latest -- --config eslint-config-standard
-
-```
-
-**Note:** `npm init @eslint/config` assumes you have a `package.json` file already. If you don't, make sure to run `npm init` or `yarn init` beforehand.
-
-After that, you can run ESLint on any file or directory like this:
-
-```shell
-npx eslint yourfile.js
-
-# or
-
-yarn run eslint yourfile.js
-```
-
-## Configuration
-
-**Note:** If you are coming from a version before 9.0.0 please see the [migration guide](configure/migration-guide).
-
-After running `npm init @eslint/config`, you'll have an `eslint.config.js` (or `eslint.config.mjs`) file in your directory. In it, you'll see some rules configured like this:
-
-```js
-// eslint.config.js
-export default [
-    {
-        rules: {
-            "no-unused-vars": "error",
-            "no-undef": "error"
+Escolha uma categoria abaixo para atendimento:
+            `,
+                        image: {
+                            url: 'https://media.discordapp.net/attachments/897447155743223819/1097129475893887036/wallpaper.png',
+                        },
+                        fields: [
+                            {
+                                name: '📋 Atendimento',
+                                value: 'Precisa de ajuda? Selecione uma das opções abaixo.',
+                            },
+                            {
+                                name: '⏰ Horário de Atendimento',
+                                value: 'Atendimento de segunda a sexta. Fora do horário, não garantimos respostas imediatas.',
+                            },
+                            {
+                                name: '🌟 Deseja ser VIP?',
+                                value: 'Confira nossa loja usando o comando `/loja`. Entrega automática e descontos via PIX!',
+                            },
+                        ],
+                        footer: {
+                            text: 'Obrigado por usar nosso sistema de tickets!',
+                        },
+                    },
+                ],
+                components: [
+                    {
+                        type: 1,
+                        components: [
+                            {
+                                type: 3,
+                                custom_id: 'ticket_select',
+                                placeholder: 'Escolha a categoria do seu atendimento',
+                                options: [
+                                    {
+                                        label: 'Denúncias',
+                                        description: 'Reportar jogadores ou infrações',
+                                        value: 'denuncias',
+                                    },
+                                    {
+                                        label: 'Ajuda com Compras',
+                                        description: 'Problemas ou dúvidas sobre compras',
+                                        value: 'compras',
+                                    },
+                                    {
+                                        label: 'Dúvidas sobre Corpo ou Facções',
+                                        description: 'Suporte relacionado a corporações e facções',
+                                        value: 'corpo_fac',
+                                    },
+                                    {
+                                        label: 'Outros',
+                                        description: 'Suporte para outros assuntos gerais',
+                                        value: 'outros',
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            });
+        } catch (error) {
+            console.error('Erro ao responder ao comando:', error);
+            if (!interaction.replied) {
+                await interaction.reply({ content: 'Ocorreu um erro ao processar seu pedido.', ephemeral: true });
+            }
         }
     }
-];
-```
 
-The names `"no-unused-vars"` and `"no-undef"` are the names of [rules](../rules) in ESLint. The first value is the error level of the rule and can be one of these values:
+    if (interaction.isSelectMenu() && interaction.customId === 'ticket_select') {
+        const category = interaction.values[0];
+        const channelName = `ticket-${ticketCounter}`;
 
-* `"off"` or `0` - turn the rule off
-* `"warn"` or `1` - turn the rule on as a warning (doesn't affect exit code)
-* `"error"` or `2` - turn the rule on as an error (exit code will be 1)
+        try {
+            const guild = interaction.guild;
+            const ticketChannel = await guild.channels.create({
+                name: channelName,
+                type: ChannelType.GuildText,
+                parent: TICKET_CATEGORY_ID,
+                topic: `Ticket criado por ${interaction.user.tag} para ${category}`,
+                permissionOverwrites: [
+                    {
+                        id: guild.roles.everyone.id,
+                        deny: ['ViewChannel'],
+                    },
+                    {
+                        id: interaction.user.id,
+                        allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'],
+                    },
+                ],
+            });
 
-The three error levels allow you fine-grained control over how ESLint applies rules (for more configuration options and details, see the [configuration docs](configure/)).
+            await interaction.reply({
+                content: `Seu ticket foi criado com sucesso: ${ticketChannel}`,
+                ephemeral: true,
+            });
 
-Your `eslint.config.js` configuration file will also include a recommended configuration, like this:
+            // Incrementar o contador de tickets
+            ticketCounter++;
 
-```js
-// eslint.config.js
-import js from "@eslint/js";
+            // Enviar mensagem no canal do ticket
+            const embed = new EmbedBuilder()
+                .setColor(0x00ff00)
+                .setTitle(`🎫 Categoria: ${category}`)
+                .setDescription(
+                    'Informe sua dúvida e/ou preencha sua denúncia se for o caso. Tickets que não forem diretos ao ponto serão fechados sem aviso prévio!'
+                );
 
-export default [
-    js.configs.recommended,
+            const closeButton = new ButtonBuilder()
+                .setCustomId('close_ticket')
+                .setLabel('Fechar Ticket')
+                .setStyle(ButtonStyle.Danger);
 
-    {
-        rules: {
-            "no-unused-vars": "warn",
-            "no-undef": "warn"
+            const fillReportButton = new ButtonBuilder()
+                .setCustomId('fill_report')
+                .setLabel('Preencher Denúncia')
+                .setStyle(ButtonStyle.Success);
+
+            const assistButton = new ButtonBuilder()
+                .setCustomId('assist_ticket')
+                .setLabel('Atender')
+                .setStyle(ButtonStyle.Primary);
+
+            const row = new ActionRowBuilder().addComponents(closeButton, fillReportButton, assistButton);
+
+            await ticketChannel.send({
+                embeds: [embed],
+                components: [row],
+            });
+        } catch (error) {
+            console.error('Erro ao criar o canal do ticket:', error);
+            await interaction.reply({
+                content: 'Ocorreu um erro ao criar o seu ticket. Por favor, tente novamente mais tarde.',
+                ephemeral: true,
+            });
         }
     }
-];
-```
 
-The `js.configs.recommended` object contains configuration to ensure that all of the rules marked as recommended on the [rules page](../rules) will be turned on.  Alternatively, you can use configurations that others have created by searching for "eslint-config" on [npmjs.com](https://www.npmjs.com/search?q=eslint-config).  ESLint will not lint your code unless you extend from a shared configuration or explicitly turn rules on in your configuration.
+    if (interaction.isButton()) {
+        switch (interaction.customId) {
+            case 'close_ticket':
+                await interaction.reply('O ticket será fechado em breve.');
+                await interaction.channel.delete();
+                break;
+            case 'fill_report':
+                await interaction.reply({
+                    content: 'Preencha sua denúncia utilizando o formulário abaixo:\n\n' +
+                             '**ID do denunciante**: Seu ID no canto inferior do Discord.\n' +
+                             '**ID do acusado**: ID da pessoa que você está denunciando.\n' +
+                             '**Provas do acontecimento**: Link para um vídeo (YouTube) ou imagem (Imgur).\n' +
+                             '**Descrição**: Explique o que aconteceu.',
+                    ephemeral: true
+                });
+                break;
+            case 'assist_ticket':
+                // Verifica se o usuário tem o cargo de Staff
+                const member = interaction.guild.members.cache.get(interaction.user.id);
+                if (member.roles.cache.has(STAFF_ROLE_ID)) {
+                    try {
+                        const ticketCreatorMatch = interaction.channel.topic?.match(/Ticket criado por (.+?) para/);
+                        if (ticketCreatorMatch) {
+                            const ticketCreatorTag = ticketCreatorMatch[1];
+                            const user = interaction.guild.members.cache.find(m => m.user.tag === ticketCreatorTag)?.user;
 
-## Global Install
+                            if (user) {
+                                await user.send(`Seu ticket está sendo atendido por ${interaction.user.tag}.`);
+                            }
+                        }
 
-It is also possible to install ESLint globally, rather than locally, using `npm install eslint --global`. However, this is not recommended, and any plugins or shareable configs that you use must still be installed locally if you install ESLint globally.
-
-## Manual Set Up
-
-You can also manually set up ESLint in your project.
-
-Before you begin, you must already have a `package.json` file. If you don't, make sure to run `npm init` or `yarn init` to create the file beforehand.
-
-1. Install the ESLint packages in your project:
-
-   ```shell
-   npm install --save-dev eslint @eslint/js
-   ```
-
-1. Add an `eslint.config.js` file:
-
-   ```shell
-   # Create JavaScript configuration file
-   touch eslint.config.js
-   ```
-
-1. Add configuration to the `eslint.config.js` file. Refer to the [Configure ESLint documentation](configure/) to learn how to add rules, custom configurations, plugins, and more.
-
-   ```js
-   import js from "@eslint/js";
-
-   export default [
-       js.configs.recommended,
-
-      {
-          rules: {
-              "no-unused-vars": "warn",
-              "no-undef": "warn"
-          }
-      }
-   ];
-   ```
-
-1. Lint code using the ESLint CLI:
-
-   ```shell
-   npx eslint project-dir/ file1.js
-   ```
-
-   For more information on the available CLI options, refer to [Command Line Interface](./command-line-interface).
-
----
-
-## Next Steps
-
-* Learn about [advanced configuration](configure/) of ESLint.
-* Get familiar with the [command line options](command-line-interface).
-* Explore [ESLint integrations](integrations) into other tools like editors, build systems, and more.
-* Can't find just the right rule?  Make your own [custom rule](../extend/custom-rules).
-* Make ESLint even better by [contributing](../contribute/).
+                        // Envia mensagem no canal do ticket
+                        await interaction.channel.send(`Este ticket está sendo atendido por ${interaction.user.tag}.`);
+                        await interaction.reply({ content: 'Você iniciou o atendimento a este ticket.', ephemeral: true });
+                    } catch (error) {
+                        console.error('Erro ao processar atendimento:', error);
+                        await interaction.reply({ content: 'Erro ao iniciar
